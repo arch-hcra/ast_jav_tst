@@ -38,7 +38,7 @@ pipeline {
                         sh """
                             export KUBECONFIG=\$KUBECONFIG
                             DEPLOYMENT="myapp"
-                            kubectl set image deployment/\$DEPLOYMENT app_j=ghcr.io/${params.REPO_OWNER}/ast_jav_tst/app_j:\$IMAGE_TAG -n default
+                            kubectl set image deployment/\$DEPLOYMENT appj=ghcr.io/${params.REPO_OWNER}/ast_jav_tst/app_j:\$IMAGE_TAG -n default
                             kubectl rollout restart deployment/\$DEPLOYMENT -n default
                             kubectl rollout status deployment/\$DEPLOYMENT -n default --timeout=300s
                         """
