@@ -37,7 +37,7 @@ pipeline {
                     withCredentials([file(credentialsId: KUBE_CONFIG_ID, variable: 'KUBECONFIG')]) {
                         sh """
                             export KUBECONFIG=\$KUBECONFIG
-                            DEPLOYMENT="myapp"
+                            DEPLOYMENT="appj"
                             kubectl set image deployment/\$DEPLOYMENT appj=ghcr.io/${params.REPO_OWNER}/ast_jav_tst/app_j:\$IMAGE_TAG -n default
                             kubectl rollout restart deployment/\$DEPLOYMENT -n default
                             kubectl rollout status deployment/\$DEPLOYMENT -n default --timeout=300s
