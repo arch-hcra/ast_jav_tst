@@ -3,7 +3,7 @@ pipeline {
     parameters {
         choice(name: 'BRANCH', choices: ['master', 'dev'], description: 'Выбери ветку')
         choice(name: 'SERVER', choices: ['vps-kube', 'local-kube'], description: 'Выбери сервер')
-        string(name: 'REPO_OWNER', defaultValue: '${{ github.repository_owner }}', description: '(arch-hcra)')
+        string(name: 'REPO_OWNER', defaultValue: 'arch-hcra', description: 'Владелец')
     }
     stages {
         stage('Checkout') {
