@@ -30,6 +30,22 @@ pipeline {
                 }
             }
         }
+
+        stage('Archive Artifacts') {
+            steps {
+                script {
+                    sh """
+                        echo "Branch: ${params.BRANCH}" > build-info.txt
+                        echo "Commit: ${env.GIT_COMMIT}" >> build-info.txt
+                        echo "Image Tag: ${env.IMAGE_TAG}" >> build-info.txt
+                        echo "Server: ${params.SERVER}" >> build-info.txt
+                        echo "Build Time: \$(date)" >> build-info.txt
+                    """
+                    archiveArtifacts artifacts: 'build-info.txt', allowEmptyArchive: true
+                }
+            }
+        }
+
         stage('Deploy to Kubernetes') {
             steps {
                 script {
