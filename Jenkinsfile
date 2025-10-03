@@ -47,7 +47,7 @@ pipeline {
                         echo "Server: ${params.SERVER}" >> build-info.txt
                         echo "Build Time: \$(date)" >> build-info.txt
                     """
-                    // Архивируем все логи и build-info
+                  
                     archiveArtifacts artifacts: 'build-info.txt, login_log.txt, build_push_log.txt, deploy_log.txt', allowEmptyArchive: true
                 }
             }
@@ -69,6 +69,20 @@ pipeline {
                 }
             }
         }
+
+        stage('Build Docker Image with Artifacts') {
+            steps {
+                
+                sh 'mkdir -p docker-context && cp build-info.txt build_push_log.txt docker-context/'
+                
+               
+                sh 'docker build -t ${DOCKER_IMAGE} docker-context'
+                
+                
+                sh 'docker push ${DOCKER_IMAGE}'
+            }
+        }
+    }
     }
     post {
         success {
