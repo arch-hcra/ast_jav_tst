@@ -13,6 +13,5 @@ public class HelloController {
         return "Hello, my Progect! The test for Java.";
     }
 
-    }
 }
 
