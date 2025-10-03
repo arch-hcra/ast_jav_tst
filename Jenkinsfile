@@ -73,25 +73,21 @@ pipeline {
             steps {
                 script {
                     def KUBE_CONFIG_ID = params.SERVER == 'vps-kube' ? 'kubeconfig-vps' : 'kubeconfig-local'
-                    def namespace = 'default'  // Замени, если у тебя другой namespace
-                    def appLabel = 'app=appj'  // Замени на label твоего приложения
-                    def containerPath = '/app/logs'  // Путь в контейнере для логов (убедись, что существует)
+                    def namespace = 'default'
+                    def appLabel = 'app=app'
+                    def containerPath = '/app'
 
                     withCredentials([file(credentialsId: KUBE_CONFIG_ID, variable: 'KUBECONFIG')]) {
-                        // Получаем имя pod'а
+                        
                         def podName = sh(script: "kubectl get pods -n ${namespace} -l ${appLabel} -o jsonpath='{.items[0].metadata.name}'", returnStdout: true).trim()
                         echo "Found pod: ${podName}"
 
-                        // Создаём папку в контейнере
-                        sh "kubectl exec -n ${namespace} ${podName} -- mkdir -p ${containerPath}"
 
-                        // Копируем логи
                         sh "kubectl cp -n ${namespace} build_push_log.txt ${podName}:${containerPath}/build_push_log.txt"
                         sh "kubectl cp -n ${namespace} deploy_log.txt ${podName}:${containerPath}/deploy_log.txt"
                         sh "kubectl cp -n ${namespace} build-info.txt ${podName}:${containerPath}/build-info.txt"
                         sh "kubectl cp -n ${namespace} login_log.txt ${podName}:${containerPath}/login_log.txt"
 
-                        // Проверяем, что файлы на месте
                         sh "kubectl exec -n ${namespace} ${podName} -- ls -la ${containerPath}"
                         sh "kubectl exec -n ${namespace} ${podName} -- head -20 ${containerPath}/build_push_log.txt || echo 'build_push_log.txt is empty or missing'"
                     }
