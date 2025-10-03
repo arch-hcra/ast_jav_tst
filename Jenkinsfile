@@ -1,5 +1,9 @@
 pipeline {
     agent any
+
+    options {
+        buildDiscarder(logRotator(daysToKeepStr: '7'))
+    }
     parameters {
         choice(name: 'BRANCH', choices: ['master', 'dev'], description: 'Выбери ветку')
         choice(name: 'SERVER', choices: ['vps-kube', 'local-kube'], description: 'Выбери сервер')
@@ -15,7 +19,7 @@ pipeline {
             steps {
                 script {
                     withCredentials([string(credentialsId: 'git-token', variable: 'GHCR_TOKEN')]) {
-                        sh "echo \$GHCR_TOKEN | docker login ghcr.io -u ${params.REPO_OWNER} --password-stdin"
+                        sh "echo \$GHCR_TOKEN | docker login ghcr.io -u ${params.REPO_OWNER} --password-stdin 2>&1 | tee login_log.txt"
                     }
                 }
             }
@@ -23,10 +27,12 @@ pipeline {
         stage('Build and Push Image') {
             steps {
                 script {
-                    def IMAGE_TAG = "${params.BRANCH}-${env.GIT_COMMIT.take(7)}" 
-                    sh "docker build -t ghcr.io/${params.REPO_OWNER}/ast_jav_tst/app_j:${IMAGE_TAG} ."
-                    sh "docker push ghcr.io/${params.REPO_OWNER}/ast_jav_tst/app_j:${IMAGE_TAG}"
-                    env.IMAGE_TAG = IMAGE_TAG 
+                    def IMAGE_TAG = "${params.BRANCH}-${env.GIT_COMMIT.take(7)}"
+                    sh """
+                        docker build -t ghcr.io/${params.REPO_OWNER}/ast_jav_tst/app_j:${IMAGE_TAG} . 2>&1 | tee build_push_log.txt
+                        docker push ghcr.io/${params.REPO_OWNER}/ast_jav_tst/app_j:${IMAGE_TAG} 2>&1 | tee -a build_push_log.txt
+                    """
+                    env.IMAGE_TAG = IMAGE_TAG
                 }
             }
         }
@@ -41,7 +47,8 @@ pipeline {
                         echo "Server: ${params.SERVER}" >> build-info.txt
                         echo "Build Time: \$(date)" >> build-info.txt
                     """
-                    archiveArtifacts artifacts: 'build-info.txt', allowEmptyArchive: true
+                    // Архивируем все логи и build-info
+                    archiveArtifacts artifacts: 'build-info.txt, login_log.txt, build_push_log.txt, deploy_log.txt', allowEmptyArchive: true
                 }
             }
         }
@@ -54,9 +61,9 @@ pipeline {
                         sh """
                             export KUBECONFIG=\$KUBECONFIG
                             DEPLOYMENT="appj"
-                            kubectl set image deployment/\$DEPLOYMENT appj=ghcr.io/${params.REPO_OWNER}/ast_jav_tst/app_j:\$IMAGE_TAG -n default
-                            kubectl rollout restart deployment/\$DEPLOYMENT -n default
-                            kubectl rollout status deployment/\$DEPLOYMENT -n default --timeout=300s
+                            kubectl set image deployment/\$DEPLOYMENT appj=ghcr.io/${params.REPO_OWNER}/ast_jav_tst/app_j:\$IMAGE_TAG -n default 2>&1 | tee deploy_log.txt
+                            kubectl rollout restart deployment/\$DEPLOYMENT -n default 2>&1 | tee -a deploy_log.txt
+                            kubectl rollout status deployment/\$DEPLOYMENT -n default --timeout=300s 2>&1 | tee -a deploy_log.txt
                         """
                     }
                 }
