@@ -10,7 +10,6 @@ pipeline {
         string(name: 'REPO_OWNER', defaultValue: 'arch-hcra', description: 'Владелец')
     }
     environment {
-        
         DOCKER_IMAGE_ARTIFACTS = "ghcr.io/${params.REPO_OWNER}/ast_jav_tst/app_j_artifacts:${params.BRANCH}-${env.GIT_COMMIT.take(7)}"
     }
     stages {
@@ -40,7 +39,6 @@ pipeline {
                 }
             }
         }
-
         stage('Archive Artifacts') {
             steps {
                 script {
@@ -51,12 +49,10 @@ pipeline {
                         echo "Server: ${params.SERVER}" >> build-info.txt
                         echo "Build Time: \$(date)" >> build-info.txt
                     """
-                  
                     archiveArtifacts artifacts: 'build-info.txt, login_log.txt, build_push_log.txt, deploy_log.txt', allowEmptyArchive: true
                 }
             }
         }
-
         stage('Deploy to Kubernetes') {
             steps {
                 script {
@@ -73,36 +69,45 @@ pipeline {
                 }
             }
         }
-
-        stage('Build Docker Image with Artifacts') {
+        stage('Copy Logs to Pod') {
             steps {
                 script {
-                    
-                    sh '''
-                        mkdir -p docker-context
-                        cp build-info.txt login_log.txt build_push_log.txt deploy_log.txt docker-context/
-                        cp Dockerfile docker-context/  # Предполагаем, что Dockerfile есть в корне проекта
-                    '''
-                    
-                    
-                    sh "docker build -t ${DOCKER_IMAGE_ARTIFACTS} docker-context 2>&1 | tee artifacts_build_log.txt"
-                    
-                
-                    sh "docker push ${DOCKER_IMAGE_ARTIFACTS} 2>&1 | tee -a artifacts_build_log.txt"
+                    def KUBE_CONFIG_ID = params.SERVER == 'vps-kube' ? 'kubeconfig-vps' : 'kubeconfig-local'
+                    def namespace = 'default'  // Замени, если у тебя другой namespace
+                    def appLabel = 'app=appj'  // Замени на label твоего приложения
+                    def containerPath = '/app/logs'  // Путь в контейнере для логов (убедись, что существует)
+
+                    withCredentials([file(credentialsId: KUBE_CONFIG_ID, variable: 'KUBECONFIG')]) {
+                        // Получаем имя pod'а
+                        def podName = sh(script: "kubectl get pods -n ${namespace} -l ${appLabel} -o jsonpath='{.items[0].metadata.name}'", returnStdout: true).trim()
+                        echo "Found pod: ${podName}"
+
+                        // Создаём папку в контейнере
+                        sh "kubectl exec -n ${namespace} ${podName} -- mkdir -p ${containerPath}"
+
+                        // Копируем логи
+                        sh "kubectl cp -n ${namespace} build_push_log.txt ${podName}:${containerPath}/build_push_log.txt"
+                        sh "kubectl cp -n ${namespace} deploy_log.txt ${podName}:${containerPath}/deploy_log.txt"
+                        sh "kubectl cp -n ${namespace} build-info.txt ${podName}:${containerPath}/build-info.txt"
+                        sh "kubectl cp -n ${namespace} login_log.txt ${podName}:${containerPath}/login_log.txt"
+
+                        // Проверяем, что файлы на месте
+                        sh "kubectl exec -n ${namespace} ${podName} -- ls -la ${containerPath}"
+                        sh "kubectl exec -n ${namespace} ${podName} -- head -20 ${containerPath}/build_push_log.txt || echo 'build_push_log.txt is empty or missing'"
+                    }
                 }
             }
         }
     }
     post {
         success {
-            echo 'Деплой успешен! Pod обновлён.'
+            echo 'Деплой успешен! Pod обновлён и логи скопированы.'
         }
         failure {
             echo 'Ошибка в pipeline. Проверь логи.'
         }
         always {
-        
-            archiveArtifacts artifacts: 'artifacts_build_log.txt', allowEmptyArchive: true
+            archiveArtifacts artifacts: 'build-info.txt, login_log.txt, build_push_log.txt, deploy_log.txt', allowEmptyArchive: true
         }
     }
 }
