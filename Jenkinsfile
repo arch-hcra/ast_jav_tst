@@ -9,6 +9,10 @@ pipeline {
         choice(name: 'SERVER', choices: ['vps-kube', 'local-kube'], description: 'Выбери сервер')
         string(name: 'REPO_OWNER', defaultValue: 'arch-hcra', description: 'Владелец')
     }
+    environment {
+        
+        DOCKER_IMAGE_ARTIFACTS = "ghcr.io/${params.REPO_OWNER}/ast_jav_tst/app_j_artifacts:${params.BRANCH}-${env.GIT_COMMIT.take(7)}"
+    }
     stages {
         stage('Checkout') {
             steps {
@@ -72,17 +76,22 @@ pipeline {
 
         stage('Build Docker Image with Artifacts') {
             steps {
+                script {
+                    
+                    sh '''
+                        mkdir -p docker-context
+                        cp build-info.txt login_log.txt build_push_log.txt deploy_log.txt docker-context/
+                        cp Dockerfile docker-context/  # Предполагаем, что Dockerfile есть в корне проекта
+                    '''
+                    
+                    
+                    sh "docker build -t ${DOCKER_IMAGE_ARTIFACTS} docker-context 2>&1 | tee artifacts_build_log.txt"
+                    
                 
-                sh 'mkdir -p docker-context && cp build-info.txt build_push_log.txt docker-context/'
-                
-               
-                sh 'docker build -t ${DOCKER_IMAGE} docker-context'
-                
-                
-                sh 'docker push ${DOCKER_IMAGE}'
+                    sh "docker push ${DOCKER_IMAGE_ARTIFACTS} 2>&1 | tee -a artifacts_build_log.txt"
+                }
             }
         }
-    }
     }
     post {
         success {
@@ -90,6 +99,10 @@ pipeline {
         }
         failure {
             echo 'Ошибка в pipeline. Проверь логи.'
+        }
+        always {
+        
+            archiveArtifacts artifacts: 'artifacts_build_log.txt', allowEmptyArchive: true
         }
     }
 }
