@@ -74,7 +74,7 @@ pipeline {
                 script {
                     def KUBE_CONFIG_ID = params.SERVER == 'vps-kube' ? 'kubeconfig-vps' : 'kubeconfig-local'
                     def namespace = 'default'
-                    def appLabel = 'app=app'
+                    def appLabel = 'app=appj'
                     def containerPath = '/app'
 
                     withCredentials([file(credentialsId: KUBE_CONFIG_ID, variable: 'KUBECONFIG')]) {
